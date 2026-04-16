@@ -6,7 +6,15 @@ function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password).digest("hex");
 }
 
+export async function GET() {
+  return seed();
+}
+
 export async function POST() {
+  return seed();
+}
+
+async function seed() {
   try {
     // Check if already seeded
     const existingAdmin = await db.user.findUnique({
