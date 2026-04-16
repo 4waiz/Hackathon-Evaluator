@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String   @default("evaluator") // admin, evaluator
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  evaluations EvaluationSession[]
+  auditLogs   AuditLog[]
+}
+
+model EvaluationSession {
+  id              String   @id @default(uuid())
+  teamName        String
+  teamId          String   @unique @default(uuid())
+  university      String   @default("")
+  members         String   @default("") // JSON array stored as string
+  category        String   @default("AI Smart Worker Assistant")
+  demoUrl         String   @default("")
+  videoUrl        String   @default("")
+  notes           String   @default("")
+  status          String   @default("draft") // draft, analyzing, analyzed, reviewed, finalized
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdById     String
+  createdBy       User     @relation(fields: [createdById], references: [id])
+
+  assets          SubmissionAsset[]
+  proposalExtraction ProposalExtraction?
+  codeExtraction     CodeExtraction?
+  evaluationResult   EvaluationResult?
+  auditLogs          AuditLog[]
+}
+
+model SubmissionAsset {
+  id          String   @id @default(uuid())
+  sessionId   String
+  session     EvaluationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  type        String   // proposal_pdf, proposal_pptx, code_zip, code_github
+  filename    String
+  filepath    String   @default("")
+  filesize    Int      @default(0)
+  mimeType    String   @default("")
+  githubUrl   String   @default("")
+  createdAt   DateTime @default(now())
+}
+
+model ProposalExtraction {
+  id           String   @id @default(uuid())
+  sessionId    String   @unique
+  session      EvaluationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  rawText      String   @default("") // Full extracted text
+  sections     String   @default("[]") // JSON: array of {title, content, pageNumbers, confidence}
+  warnings     String   @default("[]") // JSON: array of extraction warnings
+  slideCount   Int      @default(0)
+  confidence   Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model CodeExtraction {
+  id              String   @id @default(uuid())
+  sessionId       String   @unique
+  session         EvaluationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  fileTree        String   @default("[]") // JSON: file tree structure
+  languages       String   @default("[]") // JSON: detected languages
+  frameworks      String   @default("[]") // JSON: detected frameworks
+  hasReadme       Boolean  @default(false)
+  hasTests        Boolean  @default(false)
+  hasDocker       Boolean  @default(false)
+  hasCi           Boolean  @default(false)
+  hasPackageJson  Boolean  @default(false)
+  hasRequirements Boolean  @default(false)
+  totalFiles      Int      @default(0)
+  totalSize       Int      @default(0)
+  readmeContent   String   @default("")
+  repoSummary     String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model RubricTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  category    String   // proposal_screening, judge_evaluation, code_review
+  description String   @default("")
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  criteria    RubricCriterion[]
+}
+
+model RubricCriterion {
+  id          String   @id @default(uuid())
+  templateId  String
+  template    RubricTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  name        String
+  description String   @default("")
+  weight      Float    @default(1.0)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  scores      CriterionScore[]
+}
+
+model EvaluationResult {
+  id               String   @id @default(uuid())
+  sessionId        String   @unique
+  session          EvaluationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  proposalSummary  String   @default("")
+  codeSummary      String   @default("")
+  strengths        String   @default("[]") // JSON array
+  weaknesses       String   @default("[]") // JSON array
+  risks            String   @default("[]") // JSON array
+  missingInfo      String   @default("[]") // JSON array
+  recommendation   String   @default("") // reject, consider, shortlist, finalist, winner_candidate
+  judgeScore       Float    @default(0) // 0-10
+  codeScore        Float    @default(0) // 0-10
+  finalScore       Float    @default(0) // weighted: judge*0.6 + code*0.4
+  judgeWeight      Float    @default(0.6)
+  codeWeight       Float    @default(0.4)
+  aiConfidence     Float    @default(0)
+  reviewerNotes    String   @default("")
+  isFinalized      Boolean  @default(false)
+  finalizedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  scores           CriterionScore[]
+}
+
+model CriterionScore {
+  id              String   @id @default(uuid())
+  resultId        String
+  result          EvaluationResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  criterionId     String
+  criterion       RubricCriterion @relation(fields: [criterionId], references: [id])
+  score           Float    @default(0) // 1-10
+  aiScore         Float    @default(0) // original AI score
+  rationale       String   @default("")
+  evidence        String   @default("[]") // JSON array of evidence bullets
+  confidence      Float    @default(0)
+  isManualOverride Boolean @default(false)
+  overrideComment  String  @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  sessionId   String?
+  session     EvaluationSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  userId      String?
+  user        User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      String   // score_override, status_change, export, etc.
+  details     String   @default("") // JSON details
+  createdAt   DateTime @default(now())
+}
+
+model AppSetting {
+  id    String @id @default(uuid())
+  key   String @unique
+  value String @default("")
+}
