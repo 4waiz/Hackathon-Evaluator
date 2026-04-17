@@ -2,6 +2,8 @@
 
 import { usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 const pageTitles: Record<string, { title: string; description: string }> = {
   "/dashboard": {
@@ -22,7 +24,15 @@ const pageTitles: Record<string, { title: string; description: string }> = {
   },
 };
 
-export function TopNav({ userName }: { userName: string }) {
+export function TopNav({
+  userName,
+  sidebarCollapsed,
+  onToggleSidebar,
+}: {
+  userName: string;
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
+}) {
   const pathname = usePathname();
 
   // Match exact or closest parent
@@ -44,11 +54,28 @@ export function TopNav({ userName }: { userName: string }) {
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
       <div className="flex items-center justify-between px-6 py-4">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">{pageInfo.title}</h1>
-          {pageInfo.description && (
-            <p className="text-sm text-muted-foreground">{pageInfo.description}</p>
+        <div className="flex items-center gap-3">
+          {onToggleSidebar && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggleSidebar}
+              aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+              title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+            >
+              {sidebarCollapsed ? (
+                <PanelLeftOpen className="h-4 w-4" />
+              ) : (
+                <PanelLeftClose className="h-4 w-4" />
+              )}
+            </Button>
           )}
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">{pageInfo.title}</h1>
+            {pageInfo.description && (
+              <p className="text-sm text-muted-foreground">{pageInfo.description}</p>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="font-normal text-muted-foreground">
